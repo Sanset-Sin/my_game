@@ -7,30 +7,30 @@ export class Platform {
     this.type = type;
   }
 
-  draw(ctx, cameraX) {
+  draw(ctx, cameraX, isGoalActive = true) {
     const screenX = this.x - cameraX;
 
     if (this.type === 'goal') {
       ctx.save();
-      ctx.fillStyle = '#74f0d4';
-      ctx.fillRect(screenX, this.y, this.width, this.height);
-      ctx.fillStyle = 'rgba(255,255,255,0.25)';
-      ctx.fillRect(screenX + this.width - 14, this.y - 80, 8, 80);
+      ctx.fillStyle = '#a7bfae';
+      ctx.fillRect(screenX + this.width - 6, this.y - 92, 6, 92 + this.height);
+      ctx.fillStyle = isGoalActive ? '#7da48d' : '#d7c8a2';
       ctx.beginPath();
-      ctx.moveTo(screenX + this.width - 6, this.y - 80);
-      ctx.lineTo(screenX + this.width + 34, this.y - 58);
-      ctx.lineTo(screenX + this.width - 6, this.y - 38);
+      ctx.moveTo(screenX, this.y - 90);
+      ctx.lineTo(screenX + 46, this.y - 72);
+      ctx.lineTo(screenX, this.y - 54);
       ctx.closePath();
-      ctx.fillStyle = '#ffd166';
       ctx.fill();
+      ctx.fillStyle = 'rgba(68, 86, 77, 0.18)';
+      ctx.fillRect(screenX, this.y, this.width, this.height);
       ctx.restore();
       return;
     }
 
     if (this.type === 'hazard') {
       ctx.save();
-      ctx.fillStyle = '#ff6b8b';
-      const spikeCount = Math.max(2, Math.floor(this.width / 20));
+      ctx.fillStyle = '#d7c8a2';
+      const spikeCount = Math.max(2, Math.floor(this.width / 18));
       const spikeWidth = this.width / spikeCount;
       for (let i = 0; i < spikeCount; i += 1) {
         const baseX = screenX + i * spikeWidth;
@@ -46,10 +46,10 @@ export class Platform {
     }
 
     ctx.save();
-    ctx.fillStyle = '#7ca7ff';
+    ctx.fillStyle = '#a7bfae';
     ctx.fillRect(screenX, this.y, this.width, this.height);
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    ctx.fillRect(screenX, this.y, this.width, 6);
+    ctx.fillStyle = 'rgba(246, 242, 232, 0.4)';
+    ctx.fillRect(screenX, this.y, this.width, 5);
     ctx.restore();
   }
 }

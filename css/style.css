@@ -1,15 +1,14 @@
 :root {
-  --bg: #0b1020;
-  --panel: rgba(14, 23, 45, 0.88);
-  --panel-2: rgba(24, 34, 61, 0.95);
-  --line: rgba(155, 178, 255, 0.18);
-  --text: #eef3ff;
-  --muted: #9bacd8;
-  --accent: #74f0d4;
-  --accent-2: #7ca7ff;
-  --danger: #ff6b8b;
-  --warn: #ffd166;
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  --bg: #ece5d9;
+  --panel: rgba(246, 242, 232, 0.92);
+  --panel-2: rgba(255, 252, 245, 0.98);
+  --line: rgba(125, 164, 141, 0.25);
+  --text: #44564d;
+  --muted: #6f7e75;
+  --accent: #7da48d;
+  --accent-2: #a7bfae;
+  --soft: #d7c8a2;
+  --shadow: 0 18px 40px rgba(75, 86, 80, 0.1);
 }
 
 * {
@@ -21,10 +20,7 @@ body {
   min-height: 100vh;
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text);
-  background:
-    radial-gradient(circle at top, rgba(116, 240, 212, 0.18), transparent 24%),
-    radial-gradient(circle at right, rgba(124, 167, 255, 0.16), transparent 26%),
-    linear-gradient(180deg, #060914 0%, #0a1020 100%);
+  background: linear-gradient(180deg, #efe8dc 0%, #e7dfd2 100%);
 }
 
 .page-shell {
@@ -43,7 +39,6 @@ body {
   border-radius: 24px;
   background: var(--panel);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(14px);
 }
 
 .eyebrow {
@@ -91,7 +86,6 @@ h1 {
   border-radius: 24px;
   background: var(--panel);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(14px);
 }
 
 .hud-panel {
@@ -134,8 +128,8 @@ h1 {
 
 .game-btn {
   width: 100%;
-  border: 1px solid rgba(124, 167, 255, 0.24);
-  background: rgba(116, 240, 212, 0.08);
+  border: 1px solid var(--line);
+  background: rgba(167, 191, 174, 0.16);
   color: var(--text);
   padding: 14px 16px;
   border-radius: 16px;
@@ -147,12 +141,12 @@ h1 {
 
 .game-btn:hover {
   transform: translateY(-1px);
-  background: rgba(116, 240, 212, 0.14);
-  border-color: rgba(116, 240, 212, 0.36);
+  background: rgba(125, 164, 141, 0.18);
+  border-color: rgba(125, 164, 141, 0.42);
 }
 
 .game-btn.primary {
-  background: linear-gradient(135deg, rgba(116, 240, 212, 0.22), rgba(124, 167, 255, 0.22));
+  background: linear-gradient(135deg, rgba(125, 164, 141, 0.26), rgba(167, 191, 174, 0.24));
 }
 
 .status-card p {
@@ -168,7 +162,7 @@ canvas {
   width: 100%;
   display: block;
   border-radius: 18px;
-  background: linear-gradient(180deg, #172343 0%, #0f1730 52%, #0a1020 100%);
+  background: linear-gradient(180deg, #f4efe6 0%, #e6dfd1 100%);
 }
 
 @media (max-width: 1024px) {
