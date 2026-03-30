@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neon Hop — JavaScript Platformer</title>
+  <meta name="description" content="Учебная игра-платформер на чистом JavaScript и Canvas API" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Практическое задание 3</p>
+        <h1>Neon Hop</h1>
+        <p class="subtitle">Платформер на JavaScript с Canvas API, уровнями, монетами, ловушками и сохранением рекорда.</p>
+      </div>
+      <div class="controls-help">
+        <span>A / D или ← / → — движение</span>
+        <span>W / Space / ↑ — прыжок</span>
+        <span>P — пауза</span>
+        <span>R — рестарт</span>
+      </div>
+    </header>
+
+    <main class="game-layout">
+      <section class="hud-panel">
+        <div class="hud-grid">
+          <div class="hud-card">
+            <span class="label">Счёт</span>
+            <strong id="scoreValue">0</strong>
+          </div>
+          <div class="hud-card">
+            <span class="label">Жизни</span>
+            <strong id="livesValue">3</strong>
+          </div>
+          <div class="hud-card">
+            <span class="label">Уровень</span>
+            <strong id="levelValue">1</strong>
+          </div>
+          <div class="hud-card">
+            <span class="label">Рекорд</span>
+            <strong id="bestValue">0</strong>
+          </div>
+        </div>
+
+        <div class="button-row">
+          <button id="startBtn" class="game-btn primary">Старт</button>
+          <button id="pauseBtn" class="game-btn">Пауза</button>
+          <button id="restartBtn" class="game-btn">Рестарт</button>
+        </div>
+
+        <div class="status-card">
+          <span class="label">Статус</span>
+          <p id="statusText">Нажми «Старт», чтобы начать забег.</p>
+        </div>
+      </section>
+
+      <section class="canvas-wrap">
+        <canvas id="gameCanvas" width="960" height="540" aria-label="Игровое поле платформера"></canvas>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

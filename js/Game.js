@@ -1,0 +1,251 @@
+import { InputHandler } from './InputHandler.js';
+import { Player } from './Player.js';
+import { Platform } from './Platform.js';
+import { Collectible } from './Collectible.js';
+import { Renderer } from './Renderer.js';
+import { isRectColliding, isCircleRectColliding } from './Collision.js';
+import { levels } from './levels.js';
+
+export class Game {
+  constructor(canvas, hud) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.renderer = new Renderer(this.ctx, canvas.width, canvas.height);
+    this.input = new InputHandler();
+    this.hud = hud;
+    this.bestStorageKey = 'neon-hop-best-score';
+    this.bestScore = Number(localStorage.getItem(this.bestStorageKey) || 0);
+
+    this.state = 'idle';
+    this.currentLevelIndex = 0;
+    this.score = 0;
+    this.lives = 3;
+    this.cameraX = 0;
+    this.lastTime = 0;
+    this.platforms = [];
+    this.collectibles = [];
+    this.goal = null;
+
+    this.player = new Player(70, 380);
+    this.bindUi();
+    this.updateHud('Нажми «Старт», чтобы начать забег.');
+  }
+
+  bindUi() {
+    this.hud.startBtn.addEventListener('click', () => this.start());
+    this.hud.pauseBtn.addEventListener('click', () => this.togglePause());
+    this.hud.restartBtn.addEventListener('click', () => this.restart());
+
+    window.addEventListener('keydown', (event) => {
+      if (event.key.toLowerCase() === 'p') this.togglePause();
+      if (event.key.toLowerCase() === 'r') this.restart();
+      if (event.key.toLowerCase() === 'enter' && (this.state === 'idle' || this.state === 'won' || this.state === 'gameover')) {
+        this.start();
+      }
+    });
+  }
+
+  start() {
+    this.score = 0;
+    this.lives = 3;
+    this.currentLevelIndex = 0;
+    this.state = 'running';
+    this.loadLevel(this.currentLevelIndex, true);
+    this.updateHud(`Уровень 1: ${levels[0].name}`);
+  }
+
+  restart() {
+    this.state = 'running';
+    this.score = 0;
+    this.lives = 3;
+    this.currentLevelIndex = 0;
+    this.loadLevel(this.currentLevelIndex, true);
+    this.updateHud('Игра перезапущена. Вперёд за рекордом.');
+  }
+
+  togglePause() {
+    if (this.state === 'running') {
+      this.state = 'paused';
+      this.updateHud('Пауза. Нажми P или кнопку ещё раз, чтобы продолжить.');
+    } else if (this.state === 'paused') {
+      this.state = 'running';
+      this.updateHud(`Уровень ${this.currentLevelIndex + 1}: ${levels[this.currentLevelIndex].name}`);
+    }
+  }
+
+  loadLevel(levelIndex, resetCamera = false) {
+    const level = levels[levelIndex];
+    this.level = level;
+    this.platforms = level.platforms.map((item) => new Platform(item.x, item.y, item.width, item.height, item.type));
+    this.collectibles = level.collectibles.map((item) => new Collectible(item.x, item.y));
+    this.goal = this.platforms.find((platform) => platform.type === 'goal');
+    this.player.startX = level.playerStart.x;
+    this.player.startY = level.playerStart.y;
+    this.player.reset();
+    if (resetCamera) this.cameraX = 0;
+    this.syncHud();
+  }
+
+  loseLife(reasonText) {
+    this.lives -= 1;
+    if (this.lives <= 0) {
+      this.lives = 0;
+      this.state = 'gameover';
+      this.persistBestScore();
+      this.updateHud(reasonText || 'Игра окончена. Осторожнее с шипами и пропастями.');
+      this.syncHud();
+      return;
+    }
+
+    this.player.reset();
+    this.cameraX = Math.max(0, this.player.x - 140);
+    this.updateHud(`${reasonText || 'Промах.'} Осталось жизней: ${this.lives}.`);
+    this.syncHud();
+  }
+
+  completeLevel() {
+    this.score += 100;
+    if (this.currentLevelIndex >= levels.length - 1) {
+      this.state = 'won';
+      this.persistBestScore();
+      this.updateHud(`Ты прошёл все уровни. Финальный счёт: ${this.score}.`);
+      this.syncHud();
+      return;
+    }
+
+    this.currentLevelIndex += 1;
+    this.loadLevel(this.currentLevelIndex, true);
+    this.updateHud(`Уровень ${this.currentLevelIndex + 1}: ${levels[this.currentLevelIndex].name}`);
+  }
+
+  persistBestScore() {
+    if (this.score > this.bestScore) {
+      this.bestScore = this.score;
+      localStorage.setItem(this.bestStorageKey, String(this.bestScore));
+    }
+  }
+
+  updateHud(statusText) {
+    this.hud.statusText.textContent = statusText;
+    this.syncHud();
+  }
+
+  syncHud() {
+    this.hud.scoreValue.textContent = String(this.score);
+    this.hud.livesValue.textContent = String(this.lives);
+    this.hud.levelValue.textContent = String(this.currentLevelIndex + 1);
+    this.hud.bestValue.textContent = String(Math.max(this.bestScore, this.score));
+  }
+
+  update(deltaTime) {
+    if (this.state !== 'running') return;
+
+    this.player.handleInput(this.input, deltaTime);
+    this.player.leaveGround();
+    this.player.update(deltaTime);
+
+    for (const platform of this.platforms) {
+      if (platform.type !== 'solid' && platform.type !== 'goal') continue;
+      if (!isRectColliding(this.player.bounds, platform)) continue;
+
+      const wasAbove = this.player.y + this.player.height - this.player.vy * (deltaTime / 1000) <= platform.y + 4;
+      if (wasAbove && this.player.vy >= 0) {
+        this.player.landOn(platform.y);
+      } else if (this.player.vx > 0) {
+        this.player.x = platform.x - this.player.width;
+      } else if (this.player.vx < 0) {
+        this.player.x = platform.x + platform.width;
+      }
+    }
+
+    for (const platform of this.platforms) {
+      if (platform.type === 'hazard' && isRectColliding(this.player.bounds, platform)) {
+        this.loseLife('Ай. Шипы не любят знакомства так близко.');
+        return;
+      }
+    }
+
+    for (const collectible of this.collectibles) {
+      if (collectible.collected) continue;
+      if (isCircleRectColliding(collectible, this.player.bounds)) {
+        collectible.collected = true;
+        this.score += collectible.value;
+        this.persistBestScore();
+        this.syncHud();
+      }
+    }
+
+    if (this.goal && isRectColliding(this.player.bounds, this.goal)) {
+      this.completeLevel();
+      return;
+    }
+
+    if (this.player.y > this.canvas.height + 160) {
+      this.loseLife('Свалился вниз. Немного драматично, но поправимо.');
+      return;
+    }
+
+    const targetCameraX = this.player.x - this.canvas.width * 0.38;
+    const maxCamera = Math.max(0, this.level.width - this.canvas.width);
+    this.cameraX = Math.max(0, Math.min(maxCamera, targetCameraX));
+  }
+
+  render(time) {
+    this.renderer.clear();
+    this.renderer.drawBackground(this.cameraX, this.level ? this.level.width : this.canvas.width);
+
+    if (this.level) {
+      for (const platform of this.platforms) platform.draw(this.ctx, this.cameraX);
+      for (const collectible of this.collectibles) collectible.draw(this.ctx, this.cameraX, time);
+      this.player.draw(this.ctx, this.cameraX);
+      this.drawLevelName();
+    }
+
+    if (this.state === 'idle') {
+      this.renderer.drawOverlay('Neon Hop', 'Кнопка Start запускает игру. Монеты дают очки, флаг завершает уровень.');
+    }
+
+    if (this.state === 'paused') {
+      this.renderer.drawOverlay('Пауза', 'Можно перевести дух. Но рекорд сам себя не побьёт.');
+    }
+
+    if (this.state === 'gameover') {
+      this.renderer.drawOverlay('Game Over', `Счёт: ${this.score}. Попробуй пройти дальше в следующий раз.`);
+    }
+
+    if (this.state === 'won') {
+      this.renderer.drawOverlay('Победа', `Финальный счёт: ${this.score}. Чисто, стильно, без суеты.`);
+    }
+  }
+
+  drawLevelName() {
+    this.ctx.save();
+    this.ctx.fillStyle = 'rgba(14, 23, 45, 0.85)';
+    this.ctx.beginPath();
+    this.ctx.roundRect(18, 18, 220, 48, 14);
+    this.ctx.fill();
+    this.ctx.fillStyle = '#eef3ff';
+    this.ctx.font = '700 20px Inter, sans-serif';
+    this.ctx.fillText(`Уровень ${this.currentLevelIndex + 1}`, 34, 48);
+    this.ctx.fillStyle = '#9bacd8';
+    this.ctx.font = '400 13px Inter, sans-serif';
+    this.ctx.fillText(this.level.name, 34, 64);
+    this.ctx.restore();
+  }
+
+  loop = (timestamp) => {
+    if (!this.lastTime) this.lastTime = timestamp;
+    const deltaTime = Math.min(32, timestamp - this.lastTime);
+    this.lastTime = timestamp;
+
+    this.update(deltaTime);
+    this.render(timestamp);
+
+    requestAnimationFrame(this.loop);
+  };
+
+  run() {
+    this.loadLevel(0, true);
+    requestAnimationFrame(this.loop);
+  }
+}
