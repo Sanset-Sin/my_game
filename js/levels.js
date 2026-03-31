@@ -120,7 +120,7 @@ export const LEVELS = [
       { x: 2790, y: 312, width: 96, height: 18, type: 'block' },
       { x: 2920, y: 264, width: 96, height: 18, type: 'block' },
       { x: 3140, y: 224, width: 96, height: 18, type: 'block' },
-      { x: 1160, y: 258, width: 34, height: 138, type: 'wall' },
+      { x: 940, y: 258, width: 34, height: 138, type: 'wall' },
       { x: 2530, y: 230, width: 34, height: 166, type: 'wall' },
       { x: 3260, y: 194, width: 34, height: 202, type: 'wall' },
       { x: 236, y: 360, width: 64, height: 18, type: 'bench' },
