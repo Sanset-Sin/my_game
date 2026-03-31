@@ -13,22 +13,22 @@ const ui = {
   overlayTag: document.getElementById('overlayTag'),
   overlayTitle: document.getElementById('overlayTitle'),
   overlayText: document.getElementById('overlayText'),
+  overlayStats: document.getElementById('overlayStats'),
 };
 
 const game = new Game(canvas, ui, input);
 
 document.getElementById('startBtn').addEventListener('click', () => game.start());
 document.getElementById('pauseBtn').addEventListener('click', () => {
-  if (game.state === 'menu') return;
-  if (game.state === 'victory' || game.state === 'gameover') return;
+  if (game.state === 'menu' || game.state === 'victory' || game.state === 'gameover') return;
   game.togglePause();
 });
 document.getElementById('restartBtn').addEventListener('click', () => game.restart());
 
-function gameLoop(timestamp) {
+function loop(timestamp) {
   game.update(timestamp);
   game.draw();
-  requestAnimationFrame(gameLoop);
+  requestAnimationFrame(loop);
 }
 
-requestAnimationFrame(gameLoop);
+requestAnimationFrame(loop);

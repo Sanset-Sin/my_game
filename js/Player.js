@@ -1,14 +1,15 @@
 export class Player {
   constructor(spawn) {
     this.radius = 18;
-    this.moveSpeed = 0.72;
-    this.maxSpeed = 6;
-    this.groundDrag = 0.8;
-    this.airDrag = 0.92;
-    this.gravity = 0.46;
-    this.jumpForce = 11.5;
-    this.maxFall = 12;
-    this.invulnerability = 0;
+    this.width = this.radius * 2;
+    this.height = this.radius * 2;
+    this.moveAcceleration = 1700;
+    this.maxSpeedX = 290;
+    this.friction = 0.82;
+    this.gravity = 1680;
+    this.maxFallSpeed = 920;
+    this.jumpVelocity = -610;
+    this.bounce = 0.08;
     this.reset(spawn);
   }
 
@@ -18,74 +19,47 @@ export class Player {
     this.vx = 0;
     this.vy = 0;
     this.onGround = false;
+    this.facing = 1;
+    this.jumpBuffer = 0;
+  }
+
+  get centerX() {
+    return this.x + this.radius;
+  }
+
+  get centerY() {
+    return this.y + this.radius;
   }
 
   get bounds() {
-    return {
-      x: this.x - this.radius,
-      y: this.y - this.radius,
-      width: this.radius * 2,
-      height: this.radius * 2,
-    };
+    return { x: this.x, y: this.y, width: this.width, height: this.height };
   }
 
-  update(input) {
-    const movingLeft = input.isDown('ArrowLeft', 'KeyA');
-    const movingRight = input.isDown('ArrowRight', 'KeyD');
-
-    if (movingLeft) this.vx -= this.moveSpeed;
-    if (movingRight) this.vx += this.moveSpeed;
-
-    if (!movingLeft && !movingRight) {
-      this.vx *= this.onGround ? this.groundDrag : this.airDrag;
-      if (Math.abs(this.vx) < 0.05) this.vx = 0;
+  update(input, dt) {
+    const direction = (input.isRight() ? 1 : 0) - (input.isLeft() ? 1 : 0);
+    if (direction !== 0) {
+      this.vx += direction * this.moveAcceleration * dt;
+      this.facing = direction;
+    } else {
+      this.vx *= Math.pow(this.friction, dt * 60);
+      if (Math.abs(this.vx) < 3) this.vx = 0;
     }
 
-    this.vx = Math.max(-this.maxSpeed, Math.min(this.maxSpeed, this.vx));
+    this.vx = Math.max(-this.maxSpeedX, Math.min(this.maxSpeedX, this.vx));
 
-    if (input.consumePress('ArrowUp', 'KeyW', 'Space') && this.onGround) {
-      this.vy = -this.jumpForce;
+    if (input.isJump()) {
+      this.jumpBuffer = 0.12;
+    } else {
+      this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
+    }
+
+    if (this.jumpBuffer > 0 && this.onGround) {
+      this.vy = this.jumpVelocity;
       this.onGround = false;
+      this.jumpBuffer = 0;
     }
 
-    this.vy += this.gravity;
-    this.vy = Math.min(this.vy, this.maxFall);
-
-    this.x += this.vx;
-    this.y += this.vy;
-
-    if (this.invulnerability > 0) {
-      this.invulnerability -= 1;
-    }
-  }
-
-  draw(ctx) {
-    ctx.save();
-
-    const blink = this.invulnerability > 0 && Math.floor(this.invulnerability / 5) % 2 === 0;
-    ctx.globalAlpha = blink ? 0.45 : 1;
-
-    const gradient = ctx.createRadialGradient(
-      this.x - 4,
-      this.y - 8,
-      6,
-      this.x,
-      this.y,
-      this.radius
-    );
-    gradient.addColorStop(0, '#f7fbf7');
-    gradient.addColorStop(0.45, '#b7d0c2');
-    gradient.addColorStop(1, '#6f9682');
-
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = 'rgba(74, 90, 84, 0.18)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.restore();
+    this.vy += this.gravity * dt;
+    this.vy = Math.min(this.vy, this.maxFallSpeed);
   }
 }

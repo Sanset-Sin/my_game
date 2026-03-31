@@ -1,20 +1,12 @@
 export class InputHandler {
   constructor() {
     this.keys = new Set();
-    this.justPressed = new Set();
 
     window.addEventListener('keydown', (event) => {
-      const code = event.code;
-      if ([
-        'ArrowLeft', 'ArrowRight', 'ArrowUp',
-        'KeyA', 'KeyD', 'KeyW', 'Space', 'KeyP'
-      ].includes(code)) {
+      this.keys.add(event.code);
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code)) {
         event.preventDefault();
       }
-      if (!this.keys.has(code)) {
-        this.justPressed.add(code);
-      }
-      this.keys.add(code);
     });
 
     window.addEventListener('keyup', (event) => {
@@ -22,17 +14,19 @@ export class InputHandler {
     });
   }
 
-  isDown(...codes) {
-    return codes.some((code) => this.keys.has(code));
+  isLeft() {
+    return this.keys.has('KeyA') || this.keys.has('ArrowLeft');
   }
 
-  consumePress(...codes) {
-    const hit = codes.some((code) => this.justPressed.has(code));
-    codes.forEach((code) => this.justPressed.delete(code));
-    return hit;
+  isRight() {
+    return this.keys.has('KeyD') || this.keys.has('ArrowRight');
   }
 
-  endFrame() {
-    this.justPressed.clear();
+  isJump() {
+    return this.keys.has('KeyW') || this.keys.has('ArrowUp') || this.keys.has('Space');
+  }
+
+  isPausePressed() {
+    return this.keys.has('KeyP');
   }
 }

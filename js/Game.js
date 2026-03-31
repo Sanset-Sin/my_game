@@ -1,63 +1,32 @@
-import { Player } from './Player.js';
-import { Platform } from './Platform.js';
-import { Renderer } from './Renderer.js';
 import { LEVELS } from './levels.js';
-import { intersectsRect, circleRectCollision } from './Collision.js';
+import { Platform } from './Platform.js';
+import { Player } from './Player.js';
+import { rectsIntersect, circleRectOverlap } from './Collision.js';
+import { Renderer } from './Renderer.js';
 
 export class Game {
   constructor(canvas, ui, input) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
     this.ui = ui;
     this.input = input;
-    this.renderer = new Renderer(canvas, this.ctx);
+    this.renderer = new Renderer(canvas);
 
     this.state = 'menu';
-    this.cameraX = 0;
     this.levelIndex = 0;
-    this.score = 0;
-    this.bestScore = Number(localStorage.getItem('lost-signal-best') || 0);
-    this.lives = 3;
-    this.levelStartTime = 0;
-    this.message = '';
-
-    this.player = new Player({ x: 90, y: 420 });
-    this.loadLevel(0, true);
-    this.updateHUD();
-    this.showOverlay(
-      'Ламповый платформер',
-      'Нажми «Старт»',
-      'Собери все энергетические фрагменты, активируй портал и пройди три зоны. A/D или ←/→ — движение, W/Space/↑ — прыжок, P — пауза.'
-    );
-  }
-
-  cloneLevel(index) {
-    const source = LEVELS[index];
-    return {
-      ...source,
-      platforms: source.platforms.map((p) => new Platform(p)),
-      fragments: source.fragments.map((f) => ({ ...f })),
-      spikes: source.spikes.map((s) => ({ ...s })),
-      drones: source.drones.map((d) => ({ ...d, direction: 1 })),
-      portal: { ...source.portal },
-      spawn: { ...source.spawn },
-      checkpoint: { ...source.checkpoint },
-    };
-  }
-
-  loadLevel(index, resetScore = false) {
-    this.levelIndex = index;
-    this.level = this.cloneLevel(index);
-    this.player.reset(this.level.spawn);
+    this.level = null;
+    this.player = new Player({ x: 0, y: 0 });
     this.cameraX = 0;
-    this.portalUnlocked = false;
-    this.levelStartTime = performance.now();
-    if (resetScore) {
-      this.score = 0;
-      this.lives = 3;
-    }
-    this.message = `${this.level.name}. ${this.level.story}`;
-    this.updateHUD();
+    this.lives = 3;
+    this.bestScore = Number(localStorage.getItem('lostSignalRebootBest') || 0);
+    this.totalCollected = 0;
+    this.totalAvailable = 0;
+    this.levelStats = [];
+    this.lastTimestamp = 0;
+    this.pauseLatch = false;
+
+    this.setOverlay('Таймкиллер-платформер', 'Нажми «Старт»', 'Проход к порталу открыт сразу. Бонусы собираются для итоговой статистики, а не для разблокировки двери.');
+    this.loadLevel(0, true);
+    this.updateUI();
   }
 
   start() {
@@ -69,210 +38,238 @@ export class Game {
     this.hideOverlay();
   }
 
+  restart() {
+    this.state = 'running';
+    this.lives = 3;
+    this.totalCollected = 0;
+    this.levelStats = LEVELS.map((level) => ({
+      name: level.name,
+      collected: 0,
+      total: level.collectibles.length,
+    }));
+    this.loadLevel(0, true);
+    this.hideOverlay();
+    this.updateUI();
+  }
+
   togglePause() {
     if (this.state === 'running') {
       this.state = 'paused';
-      this.showOverlay('Пауза', this.level.name, 'Игра остановлена. Нажми «Пауза» ещё раз или клавишу P, чтобы продолжить.');
+      this.setOverlay('Пауза', 'Игра остановлена', 'Нажми «Пауза» ещё раз или клавишу P, чтобы продолжить.');
     } else if (this.state === 'paused') {
       this.state = 'running';
       this.hideOverlay();
     }
   }
 
-  restart() {
-    this.loadLevel(0, true);
-    this.state = 'menu';
-    this.showOverlay(
-      'Перезапуск',
-      'Сигнал сброшен',
-      'Все уровни пересобраны заново. Нажми «Старт» и попробуй пройти уже без красивых падений в шипы.'
-    );
+  cloneLevel(rawLevel) {
+    return {
+      ...rawLevel,
+      solids: rawLevel.solids.map((solid) => new Platform(solid.x, solid.y, solid.width, solid.height, solid.type)),
+      hazards: rawLevel.hazards.map((hazard) => ({ ...hazard })),
+      collectibles: rawLevel.collectibles.map((item) => ({ ...item })),
+      decor: rawLevel.decor.map((item) => ({ ...item })),
+      portal: { ...rawLevel.portal },
+      portalPulse: 0,
+    };
   }
 
-  update(timestamp) {
-    if (this.input.consumePress('KeyP')) {
-      if (this.state === 'running' || this.state === 'paused') {
-        this.togglePause();
+  loadLevel(index, resetRun = false) {
+    this.levelIndex = index;
+    this.level = this.cloneLevel(LEVELS[index]);
+    this.player.reset(this.level.spawn);
+    this.cameraX = 0;
+    if (resetRun) {
+      this.totalAvailable = LEVELS.reduce((sum, level) => sum + level.collectibles.length, 0);
+      this.levelStats = LEVELS.map((level) => ({
+        name: level.name,
+        collected: 0,
+        total: level.collectibles.length,
+      }));
+    }
+    this.updateUI();
+  }
+
+  update(timestamp = 0) {
+    if (!this.lastTimestamp) this.lastTimestamp = timestamp;
+    let dt = (timestamp - this.lastTimestamp) / 1000;
+    this.lastTimestamp = timestamp;
+    if (dt > 0.032) dt = 0.032;
+
+    const pausePressed = this.input.isPausePressed();
+    if (pausePressed && !this.pauseLatch && this.state !== 'menu' && this.state !== 'victory' && this.state !== 'gameover') {
+      this.togglePause();
+    }
+    this.pauseLatch = pausePressed;
+
+    if (this.state !== 'running') return;
+
+    this.level.portalPulse += dt * 2;
+    for (const item of this.level.collectibles) {
+      item.floatOffset += dt * 3;
+    }
+
+    this.updateHazards(dt);
+    this.player.update(this.input, dt);
+    this.moveAndCollide(dt);
+    this.collectBonuses();
+    this.checkHazards();
+    this.checkPortal();
+    this.updateCamera();
+    this.updateUI();
+  }
+
+  updateHazards(dt) {
+    for (const hazard of this.level.hazards) {
+      if (hazard.type !== 'flyer') continue;
+      hazard.x += hazard.speed * hazard.dir * dt;
+      if (hazard.x <= hazard.minX) {
+        hazard.x = hazard.minX;
+        hazard.dir = 1;
+      } else if (hazard.x >= hazard.maxX) {
+        hazard.x = hazard.maxX;
+        hazard.dir = -1;
       }
     }
-
-    if (this.state !== 'running') {
-      this.input.endFrame();
-      return;
-    }
-
-    this.player.update(this.input);
-    this.resolvePlatformCollisions();
-    this.updateDrones();
-    this.collectFragments();
-    this.checkHazards();
-    this.checkPortal(timestamp);
-    this.updateCamera();
-    this.updateHUD();
-    this.input.endFrame();
   }
 
-  resolvePlatformCollisions() {
+  moveAndCollide(dt) {
     const player = this.player;
     player.onGround = false;
 
-    for (const platform of this.level.platforms) {
-      const bounds = player.bounds;
-      const intersects = intersectsRect(bounds, platform);
-      if (!intersects) continue;
+    player.x += player.vx * dt;
+    for (const solid of this.level.solids) {
+      if (!rectsIntersect(player.bounds, solid)) continue;
+      if (player.vx > 0) {
+        player.x = solid.x - player.width;
+      } else if (player.vx < 0) {
+        player.x = solid.x + solid.width;
+      }
+      player.vx = 0;
+    }
 
-      const prevBottom = bounds.y + bounds.height - player.vy;
-      const prevTop = bounds.y - player.vy;
-      const prevRight = bounds.x + bounds.width - player.vx;
-      const prevLeft = bounds.x - player.vx;
-
-      const platformTop = platform.y;
-      const platformBottom = platform.y + platform.height;
-      const platformLeft = platform.x;
-      const platformRight = platform.x + platform.width;
-
-      if (prevBottom <= platformTop && player.vy >= 0) {
-        player.y = platformTop - player.radius;
+    player.y += player.vy * dt;
+    for (const solid of this.level.solids) {
+      if (!rectsIntersect(player.bounds, solid)) continue;
+      if (player.vy > 0) {
+        player.y = solid.y - player.height;
         player.vy = 0;
         player.onGround = true;
-      } else if (prevTop >= platformBottom && player.vy < 0) {
-        player.y = platformBottom + player.radius;
-        player.vy = 0;
-      } else if (prevRight <= platformLeft && player.vx > 0) {
-        player.x = platformLeft - player.radius;
-        player.vx = 0;
-      } else if (prevLeft >= platformRight && player.vx < 0) {
-        player.x = platformRight + player.radius;
-        player.vx = 0;
+      } else if (player.vy < 0) {
+        player.y = solid.y + solid.height;
+        player.vy = Math.abs(player.vy) * player.bounce;
       }
+    }
+
+    if (player.y > this.canvas.height + 140) {
+      this.loseLife('Провал в дыру');
+    }
+
+    if (player.x < 0) player.x = 0;
+    if (player.x + player.width > this.level.worldWidth) {
+      player.x = this.level.worldWidth - player.width;
+      player.vx = 0;
     }
   }
 
-  updateDrones() {
-    for (const drone of this.level.drones) {
-      drone.x += drone.speed * drone.direction;
-      if (drone.x <= drone.minX || drone.x + drone.width >= drone.maxX) {
-        drone.direction *= -1;
-      }
+  collectBonuses() {
+    const circle = { x: this.player.centerX, y: this.player.centerY, radius: this.player.radius };
+    for (const item of this.level.collectibles) {
+      if (item.collected) continue;
+      const rect = { x: item.x - 10, y: item.y - 10, width: 20, height: 20 };
+      if (!circleRectOverlap(circle, rect)) continue;
+      item.collected = true;
+      this.totalCollected += 1;
+      this.levelStats[this.levelIndex].collected += 1;
     }
-  }
-
-  collectFragments() {
-    for (const fragment of this.level.fragments) {
-      if (fragment.collected) continue;
-      const dx = this.player.x - fragment.x;
-      const dy = this.player.y - fragment.y;
-      if (dx * dx + dy * dy <= (this.player.radius + 12) ** 2) {
-        fragment.collected = true;
-        this.score += 10;
-      }
-    }
-
-    this.portalUnlocked = this.level.fragments.every((fragment) => fragment.collected);
   }
 
   checkHazards() {
-    if (this.player.invulnerability > 0) return;
-
-    const playerCircle = { x: this.player.x, y: this.player.y, radius: this.player.radius };
-
-    for (const spike of this.level.spikes) {
-      if (circleRectCollision(playerCircle, spike)) {
-        this.takeHit();
-        return;
+    const circle = { x: this.player.centerX, y: this.player.centerY, radius: this.player.radius };
+    for (const hazard of this.level.hazards) {
+      if (hazard.type === 'spikes') {
+        const rect = { x: hazard.x, y: hazard.y, width: hazard.width, height: hazard.height };
+        if (circleRectOverlap(circle, rect)) {
+          this.loseLife('Шипы');
+          return;
+        }
+      } else if (hazard.type === 'flyer') {
+        const rect = { x: hazard.x, y: hazard.y, width: hazard.width, height: hazard.height };
+        if (circleRectOverlap(circle, rect)) {
+          this.loseLife('Летун');
+          return;
+        }
       }
-    }
-
-    for (const drone of this.level.drones) {
-      if (intersectsRect(this.player.bounds, drone)) {
-        this.takeHit();
-        return;
-      }
-    }
-
-    if (this.player.y - this.player.radius > this.canvas.height + 60) {
-      this.takeHit(true);
     }
   }
 
-  takeHit(fromFall = false) {
+  checkPortal() {
+    const circle = { x: this.player.centerX, y: this.player.centerY, radius: this.player.radius };
+    const portal = this.level.portal;
+    if (!circleRectOverlap(circle, portal)) return;
+
+    if (this.levelIndex < LEVELS.length - 1) {
+      this.loadLevel(this.levelIndex + 1);
+      this.setOverlay('Переход', this.level.name, this.level.story);
+      this.state = 'paused';
+    } else {
+      this.finishGame();
+    }
+  }
+
+  loseLife(reason) {
+    if (this.state !== 'running') return;
     this.lives -= 1;
     if (this.lives <= 0) {
-      this.finishGame(false);
+      this.state = 'gameover';
+      this.showFinalStats('Сигнал потерян', `Попытки закончились. Причина последней ошибки: ${reason}.`);
       return;
     }
 
-    this.player.reset(this.level.checkpoint);
-    this.player.invulnerability = 90;
-    this.cameraX = Math.max(0, this.player.x - this.canvas.width * 0.35);
-    this.message = fromFall ? 'Падение в пустоту. Ядро отброшено к контрольной точке.' : 'Слишком близко к ловушкам. Попробуй точнее.';
-    this.updateHUD();
+    this.player.reset(this.level.spawn);
+    this.cameraX = 0;
+    this.setOverlay('Попытка сорвалась', `Минус жизнь: ${reason}`, 'Но проход к порталу всё ещё открыт. Собирай бонусы по желанию и иди дальше.');
+    this.state = 'paused';
+    this.updateUI();
   }
 
-  checkPortal(timestamp) {
-    const portalRect = this.level.portal;
-    if (!this.portalUnlocked) return;
-
-    if (intersectsRect(this.player.bounds, portalRect)) {
-      const elapsedSeconds = Math.floor((timestamp - this.levelStartTime) / 1000);
-      const bonus = Math.max(20, this.level.timeBonus - elapsedSeconds * 3);
-      this.score += bonus;
-
-      if (this.levelIndex < LEVELS.length - 1) {
-        const nextLevel = this.levelIndex + 1;
-        this.loadLevel(nextLevel, false);
-        this.state = 'paused';
-        this.showOverlay(
-          'Переход',
-          LEVELS[nextLevel].name,
-          `Уровень пройден. Бонус за скорость: +${bonus}. Нажми «Старт», чтобы войти в следующую зону.`
-        );
-      } else {
-        this.finishGame(true, bonus);
-      }
+  finishGame() {
+    this.state = 'victory';
+    if (this.totalCollected > this.bestScore) {
+      this.bestScore = this.totalCollected;
+      localStorage.setItem('lostSignalRebootBest', String(this.bestScore));
     }
+    this.showFinalStats('Сигнал восстановлен', 'Игра завершена. Ниже — статистика по каждому уровню и общий итог.');
+    this.updateUI();
   }
 
-  finishGame(won, finalBonus = 0) {
-    this.bestScore = Math.max(this.bestScore, this.score);
-    localStorage.setItem('lost-signal-best', String(this.bestScore));
-    this.updateHUD();
-
-    if (won) {
-      this.state = 'victory';
-      this.showOverlay(
-        'Финал',
-        'Сигнал восстановлен',
-        `Ты собрал(а) все фрагменты и активировал(а) ядро. Финальный бонус: +${finalBonus}. Итоговый счёт: ${this.score}.`
-      );
-    } else {
-      this.state = 'gameover';
-      this.showOverlay(
-        'Поражение',
-        'Ядро перегорело',
-        `Жизни закончились. Итоговый счёт: ${this.score}. Нажми «Рестарт» и попробуй пройти уже без самоуничтожения.`
-      );
-    }
+  showFinalStats(title, text) {
+    this.ui.overlayStats.innerHTML = this.levelStats
+      .map((row) => `<div class="stats-row"><span>${row.name}</span><strong>${row.collected} / ${row.total}</strong></div>`)
+      .join('') + `<div class="stats-row"><span>Общий итог</span><strong>${this.totalCollected} / ${this.totalAvailable}</strong></div>`;
+    this.setOverlay('Финальная статистика', title, text, false);
   }
 
   updateCamera() {
-    const target = this.player.x - this.canvas.width * 0.35;
-    const maxCamera = this.level.worldWidth - this.canvas.width;
-    this.cameraX += (target - this.cameraX) * 0.08;
-    this.cameraX = Math.max(0, Math.min(maxCamera, this.cameraX));
+    const targetX = this.player.centerX - this.canvas.width * 0.35;
+    this.cameraX += (targetX - this.cameraX) * 0.1;
+    const maxCameraX = Math.max(0, this.level.worldWidth - this.canvas.width);
+    if (this.cameraX < 0) this.cameraX = 0;
+    if (this.cameraX > maxCameraX) this.cameraX = maxCameraX;
   }
 
-  updateHUD() {
+  updateUI() {
     this.ui.levelValue.textContent = `${this.levelIndex + 1} / ${LEVELS.length}`;
-    this.ui.scoreValue.textContent = String(this.score);
+    this.ui.scoreValue.textContent = `${this.levelStats[this.levelIndex]?.collected ?? 0} / ${this.levelStats[this.levelIndex]?.total ?? 0}`;
     this.ui.livesValue.textContent = String(this.lives);
-    this.ui.bestValue.textContent = String(Math.max(this.bestScore, this.score));
+    this.ui.bestValue.textContent = String(this.bestScore);
   }
 
-  showOverlay(tag, title, text) {
+  setOverlay(tag, title, text, clearStats = true) {
     this.ui.overlayTag.textContent = tag;
     this.ui.overlayTitle.textContent = title;
     this.ui.overlayText.textContent = text;
+    if (clearStats) this.ui.overlayStats.innerHTML = '';
     this.ui.overlay.classList.remove('hidden');
   }
 
@@ -281,125 +278,6 @@ export class Game {
   }
 
   draw() {
-    const ctx = this.ctx;
-    this.renderer.clear();
-    this.renderer.drawParallax(this.cameraX);
-
-    ctx.save();
-    ctx.translate(-this.cameraX, 0);
-
-    this.drawWorldDecor();
-    this.level.platforms.forEach((platform) => platform.draw(ctx));
-    this.drawSpikes();
-    this.drawFragments();
-    this.drawPortal();
-    this.drawDrones();
-    this.player.draw(ctx);
-
-    ctx.restore();
-
-    this.drawMessage();
-  }
-
-  drawWorldDecor() {
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.fillStyle = 'rgba(111, 150, 130, 0.16)';
-    for (let i = 0; i < this.level.worldWidth; i += 260) {
-      ctx.beginPath();
-      ctx.arc(i + 80, 500, 44, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  drawFragments() {
-    const ctx = this.ctx;
-    for (const fragment of this.level.fragments) {
-      if (fragment.collected) continue;
-      ctx.save();
-      ctx.translate(fragment.x, fragment.y);
-      ctx.fillStyle = '#d8c66d';
-      ctx.beginPath();
-      for (let i = 0; i < 6; i += 1) {
-        const angle = (Math.PI / 3) * i;
-        const radius = i % 2 === 0 ? 12 : 6;
-        const x = Math.cos(angle) * radius;
-        const y = Math.sin(angle) * radius;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
-  }
-
-  drawSpikes() {
-    const ctx = this.ctx;
-    for (const spike of this.level.spikes) {
-      const teeth = Math.max(2, Math.floor(spike.width / 12));
-      const toothWidth = spike.width / teeth;
-      ctx.save();
-      ctx.fillStyle = '#c98876';
-      for (let i = 0; i < teeth; i += 1) {
-        const x = spike.x + i * toothWidth;
-        ctx.beginPath();
-        ctx.moveTo(x, spike.y + spike.height);
-        ctx.lineTo(x + toothWidth / 2, spike.y);
-        ctx.lineTo(x + toothWidth, spike.y + spike.height);
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.restore();
-    }
-  }
-
-  drawPortal() {
-    const ctx = this.ctx;
-    const portal = this.level.portal;
-    ctx.save();
-    ctx.strokeStyle = this.portalUnlocked ? '#91a8c5' : 'rgba(145, 168, 197, 0.35)';
-    ctx.lineWidth = 6;
-    ctx.strokeRect(portal.x, portal.y, portal.width, portal.height);
-    ctx.fillStyle = this.portalUnlocked ? 'rgba(145, 168, 197, 0.28)' : 'rgba(145, 168, 197, 0.1)';
-    ctx.fillRect(portal.x + 4, portal.y + 4, portal.width - 8, portal.height - 8);
-    ctx.restore();
-  }
-
-  drawDrones() {
-    const ctx = this.ctx;
-    for (const drone of this.level.drones) {
-      ctx.save();
-      ctx.fillStyle = '#c98876';
-      ctx.fillRect(drone.x, drone.y, drone.width, drone.height);
-      ctx.fillStyle = '#fffaf2';
-      ctx.fillRect(drone.x + 7, drone.y + 7, 8, 8);
-      ctx.fillRect(drone.x + 27, drone.y + 7, 8, 8);
-      ctx.restore();
-    }
-  }
-
-  drawMessage() {
-    if (!this.message) return;
-
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.fillStyle = 'rgba(255, 250, 242, 0.85)';
-    ctx.strokeStyle = 'rgba(200, 189, 168, 0.8)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    const x = 18;
-    const y = 18;
-    const w = 440;
-    const h = 50;
-    ctx.roundRect(x, y, w, h, 16);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#4a5a54';
-    ctx.font = '500 15px Inter, sans-serif';
-    ctx.fillText(this.message, 34, 48, 400);
-    ctx.restore();
+    this.renderer.draw(this);
   }
 }
