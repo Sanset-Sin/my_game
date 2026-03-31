@@ -3,6 +3,9 @@ import { Game } from './Game.js';
 
 const canvas = document.getElementById('gameCanvas');
 const input = new InputHandler();
+const startBtn = document.getElementById('startBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const restartBtn = document.getElementById('restartBtn');
 
 const ui = {
   levelValue: document.getElementById('levelValue'),
@@ -16,14 +19,14 @@ const ui = {
   overlayStats: document.getElementById('overlayStats'),
 };
 
-const game = new Game(canvas, ui, input);
+const game = new Game(canvas, ui, input, { startBtn, pauseBtn, restartBtn });
 
-document.getElementById('startBtn').addEventListener('click', () => game.start());
-document.getElementById('pauseBtn').addEventListener('click', () => {
+startBtn.addEventListener('click', () => game.start());
+pauseBtn.addEventListener('click', () => {
   if (game.state === 'menu' || game.state === 'victory' || game.state === 'gameover') return;
   game.togglePause();
 });
-document.getElementById('restartBtn').addEventListener('click', () => game.restart());
+restartBtn.addEventListener('click', () => game.restart());
 
 function loop(timestamp) {
   game.update(timestamp);

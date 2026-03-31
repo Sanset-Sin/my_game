@@ -5,10 +5,11 @@ import { rectsIntersect, circleRectOverlap } from './Collision.js';
 import { Renderer } from './Renderer.js';
 
 export class Game {
-  constructor(canvas, ui, input) {
+  constructor(canvas, ui, input, controls = {}) {
     this.canvas = canvas;
     this.ui = ui;
     this.input = input;
+    this.controls = controls;
     this.renderer = new Renderer(canvas);
 
     this.state = 'menu';
@@ -17,16 +18,23 @@ export class Game {
     this.player = new Player({ x: 0, y: 0 });
     this.cameraX = 0;
     this.lives = 3;
-    this.bestScore = Number(localStorage.getItem('lostSignalRebootBest') || 0);
+    this.bestScore = Number(localStorage.getItem('lostSignalGroundsBest') || 0);
     this.totalCollected = 0;
     this.totalAvailable = 0;
     this.levelStats = [];
     this.lastTimestamp = 0;
     this.pauseLatch = false;
+    this.time = 0;
+    this.startedOnce = false;
+    this.autoResumeTimer = 0;
+    this.uiDirty = true;
 
-    this.setOverlay('Таймкиллер-платформер', 'Нажми «Старт»', 'Проход к порталу открыт сразу. Бонусы собираются для итоговой статистики, а не для разблокировки двери.');
-    this.loadLevel(0, true);
-    this.updateUI();
+    this.totalAvailable = LEVELS.reduce((sum, level) => sum + level.collectibles.length, 0);
+    this.levelStats = LEVELS.map((level) => ({ name: level.name, collected: 0, total: level.collectibles.length }));
+
+    this.setOverlay('Платформер', 'Нажми «Старт»', 'После первого запуска игра идёт без повторного нажатия. Портал открыт всегда, бонусы нужны только для статистики.');
+    this.loadLevel(0);
+    this.updateUI(true);
   }
 
   start() {
@@ -34,7 +42,15 @@ export class Game {
       this.restart();
       return;
     }
+    if (!this.startedOnce) {
+      this.startedOnce = true;
+      if (this.controls.startBtn) {
+        this.controls.startBtn.disabled = true;
+        this.controls.startBtn.textContent = 'Запущено';
+      }
+    }
     this.state = 'running';
+    this.autoResumeTimer = 0;
     this.hideOverlay();
   }
 
@@ -42,14 +58,13 @@ export class Game {
     this.state = 'running';
     this.lives = 3;
     this.totalCollected = 0;
-    this.levelStats = LEVELS.map((level) => ({
-      name: level.name,
-      collected: 0,
-      total: level.collectibles.length,
-    }));
-    this.loadLevel(0, true);
+    this.levelStats = LEVELS.map((level) => ({ name: level.name, collected: 0, total: level.collectibles.length }));
+    this.time = 0;
+    this.autoResumeTimer = 0;
+    this.loadLevel(0);
     this.hideOverlay();
-    this.updateUI();
+    this.uiDirty = true;
+    this.updateUI(true);
   }
 
   togglePause() {
@@ -74,19 +89,12 @@ export class Game {
     };
   }
 
-  loadLevel(index, resetRun = false) {
+  loadLevel(index) {
     this.levelIndex = index;
     this.level = this.cloneLevel(LEVELS[index]);
     this.player.reset(this.level.spawn);
     this.cameraX = 0;
-    if (resetRun) {
-      this.totalAvailable = LEVELS.reduce((sum, level) => sum + level.collectibles.length, 0);
-      this.levelStats = LEVELS.map((level) => ({
-        name: level.name,
-        collected: 0,
-        total: level.collectibles.length,
-      }));
-    }
+    this.uiDirty = true;
     this.updateUI();
   }
 
@@ -94,7 +102,9 @@ export class Game {
     if (!this.lastTimestamp) this.lastTimestamp = timestamp;
     let dt = (timestamp - this.lastTimestamp) / 1000;
     this.lastTimestamp = timestamp;
-    if (dt > 0.032) dt = 0.032;
+    if (dt > 0.03) dt = 0.03;
+
+    this.time += dt;
 
     const pausePressed = this.input.isPausePressed();
     if (pausePressed && !this.pauseLatch && this.state !== 'menu' && this.state !== 'victory' && this.state !== 'gameover') {
@@ -102,20 +112,24 @@ export class Game {
     }
     this.pauseLatch = pausePressed;
 
-    if (this.state !== 'running') return;
-
-    this.level.portalPulse += dt * 2;
-    for (const item of this.level.collectibles) {
-      item.floatOffset += dt * 3;
+    if (this.autoResumeTimer > 0) {
+      this.autoResumeTimer -= dt;
+      if (this.autoResumeTimer <= 0 && this.state === 'paused') {
+        this.state = 'running';
+        this.hideOverlay();
+      }
     }
 
+    if (this.state !== 'running') return;
+
+    this.level.portalPulse += dt * 4;
     this.updateHazards(dt);
     this.player.update(this.input, dt);
     this.moveAndCollide(dt);
     this.collectBonuses();
     this.checkHazards();
     this.checkPortal();
-    this.updateCamera();
+    this.updateCamera(dt);
     this.updateUI();
   }
 
@@ -133,23 +147,27 @@ export class Game {
     }
   }
 
+  getNearbySolids(margin = 90) {
+    const left = this.player.x - margin;
+    const right = this.player.x + this.player.width + margin;
+    return this.level.solids.filter((solid) => solid.x + solid.width >= left && solid.x <= right);
+  }
+
   moveAndCollide(dt) {
     const player = this.player;
+    const solids = this.getNearbySolids();
     player.onGround = false;
 
     player.x += player.vx * dt;
-    for (const solid of this.level.solids) {
+    for (const solid of solids) {
       if (!rectsIntersect(player.bounds, solid)) continue;
-      if (player.vx > 0) {
-        player.x = solid.x - player.width;
-      } else if (player.vx < 0) {
-        player.x = solid.x + solid.width;
-      }
+      if (player.vx > 0) player.x = solid.x - player.width;
+      else if (player.vx < 0) player.x = solid.x + solid.width;
       player.vx = 0;
     }
 
     player.y += player.vy * dt;
-    for (const solid of this.level.solids) {
+    for (const solid of solids) {
       if (!rectsIntersect(player.bounds, solid)) continue;
       if (player.vy > 0) {
         player.y = solid.y - player.height;
@@ -161,7 +179,7 @@ export class Game {
       }
     }
 
-    if (player.y > this.canvas.height + 140) {
+    if (player.y > this.canvas.height + 150) {
       this.loseLife('Провал в дыру');
     }
 
@@ -181,37 +199,33 @@ export class Game {
       item.collected = true;
       this.totalCollected += 1;
       this.levelStats[this.levelIndex].collected += 1;
+      this.uiDirty = true;
     }
   }
 
   checkHazards() {
     const circle = { x: this.player.centerX, y: this.player.centerY, radius: this.player.radius };
     for (const hazard of this.level.hazards) {
-      if (hazard.type === 'spikes') {
-        const rect = { x: hazard.x, y: hazard.y, width: hazard.width, height: hazard.height };
-        if (circleRectOverlap(circle, rect)) {
-          this.loseLife('Шипы');
-          return;
-        }
-      } else if (hazard.type === 'flyer') {
-        const rect = { x: hazard.x, y: hazard.y, width: hazard.width, height: hazard.height };
-        if (circleRectOverlap(circle, rect)) {
-          this.loseLife('Летун');
-          return;
-        }
+      const rect = { x: hazard.x, y: hazard.y, width: hazard.width, height: hazard.height };
+      if (circleRectOverlap(circle, rect)) {
+        this.loseLife(hazard.type === 'flyer' ? 'Летун' : 'Шипы');
+        return;
       }
     }
   }
 
   checkPortal() {
     const circle = { x: this.player.centerX, y: this.player.centerY, radius: this.player.radius };
-    const portal = this.level.portal;
-    if (!circleRectOverlap(circle, portal)) return;
+    if (!circleRectOverlap(circle, this.level.portal)) return;
 
     if (this.levelIndex < LEVELS.length - 1) {
-      this.loadLevel(this.levelIndex + 1);
-      this.setOverlay('Переход', this.level.name, this.level.story);
+      const nextLevel = this.levelIndex + 1;
+      const title = LEVELS[nextLevel].name;
+      const story = LEVELS[nextLevel].story;
+      this.loadLevel(nextLevel);
       this.state = 'paused';
+      this.autoResumeTimer = 1.1;
+      this.setOverlay('Переход', title, story);
     } else {
       this.finishGame();
     }
@@ -220,27 +234,30 @@ export class Game {
   loseLife(reason) {
     if (this.state !== 'running') return;
     this.lives -= 1;
+    this.uiDirty = true;
     if (this.lives <= 0) {
       this.state = 'gameover';
-      this.showFinalStats('Сигнал потерян', `Попытки закончились. Причина последней ошибки: ${reason}.`);
+      this.showFinalStats('Сигнал потерян', `Попытки закончились. Последняя ошибка: ${reason}.`);
       return;
     }
 
     this.player.reset(this.level.spawn);
     this.cameraX = 0;
-    this.setOverlay('Попытка сорвалась', `Минус жизнь: ${reason}`, 'Но проход к порталу всё ещё открыт. Собирай бонусы по желанию и иди дальше.');
     this.state = 'paused';
-    this.updateUI();
+    this.autoResumeTimer = 0.9;
+    this.setOverlay('Попытка сорвалась', `Минус жизнь: ${reason}`, 'Сейчас игра сама продолжится, повторно жать «Старт» не нужно.');
   }
 
   finishGame() {
     this.state = 'victory';
+    this.autoResumeTimer = 0;
     if (this.totalCollected > this.bestScore) {
       this.bestScore = this.totalCollected;
-      localStorage.setItem('lostSignalRebootBest', String(this.bestScore));
+      localStorage.setItem('lostSignalGroundsBest', String(this.bestScore));
     }
-    this.showFinalStats('Сигнал восстановлен', 'Игра завершена. Ниже — статистика по каждому уровню и общий итог.');
-    this.updateUI();
+    this.showFinalStats('Сигнал восстановлен', 'Игра завершена. Ниже — бонусы по каждому уровню и общий итог.');
+    this.uiDirty = true;
+    this.updateUI(true);
   }
 
   showFinalStats(title, text) {
@@ -250,19 +267,21 @@ export class Game {
     this.setOverlay('Финальная статистика', title, text, false);
   }
 
-  updateCamera() {
-    const targetX = this.player.centerX - this.canvas.width * 0.35;
-    this.cameraX += (targetX - this.cameraX) * 0.1;
+  updateCamera(dt) {
+    const targetX = this.player.centerX - this.canvas.width * 0.34;
     const maxCameraX = Math.max(0, this.level.worldWidth - this.canvas.width);
+    this.cameraX += (targetX - this.cameraX) * Math.min(1, dt * 7.5);
     if (this.cameraX < 0) this.cameraX = 0;
     if (this.cameraX > maxCameraX) this.cameraX = maxCameraX;
   }
 
-  updateUI() {
+  updateUI(force = false) {
+    if (!this.uiDirty && !force) return;
     this.ui.levelValue.textContent = `${this.levelIndex + 1} / ${LEVELS.length}`;
     this.ui.scoreValue.textContent = `${this.levelStats[this.levelIndex]?.collected ?? 0} / ${this.levelStats[this.levelIndex]?.total ?? 0}`;
     this.ui.livesValue.textContent = String(this.lives);
     this.ui.bestValue.textContent = String(this.bestScore);
+    this.uiDirty = false;
   }
 
   setOverlay(tag, title, text, clearStats = true) {

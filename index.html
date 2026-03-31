@@ -3,10 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lost Signal: Reboot</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <title>Lost Signal: Grounds</title>
   <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body>
@@ -15,8 +12,8 @@
       <header class="topbar">
         <div>
           <p class="eyebrow">Практическое задание 3</p>
-          <h1>Lost Signal: Reboot</h1>
-          <p class="subtitle">Спокойный 2D-платформер: ядро-мяч катится через стены, платформы и провалы, собирая фрагменты сигнала по пути.</p>
+          <h1>Lost Signal: Grounds</h1>
+          <p class="subtitle">Мяч-ядро катится по длинным участкам земли, прыгает через обрывы, забирается на блоки и лавки, избегает шипов и долетает до портала.</p>
         </div>
         <div class="topbar-actions">
           <button id="startBtn" class="btn btn-primary">Старт</button>
@@ -33,12 +30,12 @@
       </section>
 
       <div class="canvas-wrap">
-        <canvas id="gameCanvas" width="960" height="540" aria-label="Игровое поле платформера Lost Signal"></canvas>
+        <canvas id="gameCanvas" width="896" height="504" aria-label="Игровое поле платформера Lost Signal"></canvas>
         <div class="overlay" id="overlay">
           <div class="overlay-card">
-            <p class="overlay-tag" id="overlayTag">Таймкиллер-платформер</p>
+            <p class="overlay-tag" id="overlayTag">Платформер</p>
             <h2 id="overlayTitle">Нажми «Старт»</h2>
-            <p id="overlayText">A/D или ←/→ — движение, W / Space / ↑ — прыжок, P — пауза. Уровень проходится при касании портала, бонусы влияют только на итоговую статистику.</p>
+            <p id="overlayText">A/D или ←/→ — движение, W / Space / ↑ — прыжок, P — пауза. Портал открыт всегда, бонусы идут только в статистику.</p>
             <div class="overlay-stats" id="overlayStats"></div>
           </div>
         </div>
@@ -46,10 +43,10 @@
 
       <footer class="legend">
         <div><span class="dot dot-player"></span>Ядро</div>
-        <div><span class="dot dot-fragment"></span>Фрагменты</div>
+        <div><span class="dot dot-fragment"></span>Бонусы</div>
         <div><span class="dot dot-portal"></span>Портал</div>
-        <div><span class="dot dot-hazard"></span>Опасности</div>
-        <div><span class="dot dot-decor"></span>Кусты и скамейки</div>
+        <div><span class="dot dot-hazard"></span>Шипы и летуны</div>
+        <div><span class="dot dot-decor"></span>Блоки, лавки и кусты</div>
       </footer>
     </section>
   </main>
