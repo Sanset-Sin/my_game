@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" fill="none">
+  <rect width="1280" height="720" fill="#F4F0E8"/>
+  <rect x="80" y="70" width="1120" height="580" rx="30" fill="#FFFAF2" stroke="#C8BDA8"/>
+  <text x="130" y="145" fill="#6F9682" font-family="Inter, Arial, sans-serif" font-size="20" letter-spacing="4">ПРАКТИЧЕСКОЕ ЗАДАНИЕ 3</text>
+  <text x="130" y="190" fill="#4A5A54" font-family="Inter, Arial, sans-serif" font-size="46" font-weight="700">Lost Signal</text>
+  <text x="130" y="228" fill="#4A5A54" font-family="Inter, Arial, sans-serif" font-size="22">Canvas-платформер с тремя уровнями, ловушками и финалом</text>
+
+  <rect x="130" y="270" width="1020" height="300" rx="24" fill="#F8F4EB" stroke="#C8BDA8"/>
+  <circle cx="250" cy="370" r="80" fill="#92B7A3" fill-opacity="0.18"/>
+  <circle cx="970" cy="330" r="50" fill="#92B7A3" fill-opacity="0.18"/>
+
+  <path d="M130 570H1150V520L1030 440L860 570H130Z" fill="#D9D1C3"/>
+  <rect x="130" y="500" width="180" height="70" fill="#D8D1C4"/>
+  <rect x="420" y="455" width="150" height="24" fill="#D8D1C4"/>
+  <rect x="650" y="410" width="140" height="24" fill="#D8D1C4"/>
+  <rect x="860" y="370" width="130" height="24" fill="#D8D1C4"/>
+  <rect x="1030" y="500" width="120" height="70" fill="#D8D1C4"/>
+
+  <circle cx="468" cy="425" r="18" fill="url(#g)"/>
+  <path d="M643 375L650 362L657 375L670 382L657 389L650 402L643 389L630 382L643 375Z" fill="#D8C66D"/>
+  <path d="M878 335L885 322L892 335L905 342L892 349L885 362L878 349L865 342L878 335Z" fill="#D8C66D"/>
+  <path d="M315 500L330 470L345 500H315Z" fill="#C98876"/>
+  <path d="M345 500L360 470L375 500H345Z" fill="#C98876"/>
+  <rect x="1080" y="430" width="46" height="66" stroke="#91A8C5" stroke-width="6" fill="#91A8C5" fill-opacity="0.28"/>
+
+  <rect x="130" y="600" width="180" height="22" rx="11" fill="#92B7A3"/>
+  <rect x="330" y="600" width="180" height="22" rx="11" fill="#FFF" stroke="#C8BDA8"/>
+  <rect x="530" y="600" width="180" height="22" rx="11" fill="#FFF" stroke="#C8BDA8"/>
+
+  <defs>
+    <radialGradient id="g" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(462 362) rotate(68.1986) scale(66.5709)">
+      <stop stop-color="#F7FBF7"/>
+      <stop offset="0.55" stop-color="#B7D0C2"/>
+      <stop offset="1" stop-color="#6F9682"/>
+    </radialGradient>
+  </defs>
+</svg>

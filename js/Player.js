@@ -1,146 +1,90 @@
 export class Player {
-  constructor(x, y) {
-    this.startX = x;
-    this.startY = y;
+  constructor(spawn) {
     this.radius = 18;
-    this.width = this.radius * 2;
-    this.height = this.radius * 2;
-    this.speed = 250;
-    this.jumpForce = 600;
-    this.gravity = 1500;
-    this.maxFallSpeed = 860;
+    this.moveSpeed = 0.72;
+    this.maxSpeed = 6;
     this.groundDrag = 0.8;
-    this.airDrag = 0.94;
-    this.reset();
+    this.airDrag = 0.92;
+    this.gravity = 0.46;
+    this.jumpForce = 11.5;
+    this.maxFall = 12;
+    this.invulnerability = 0;
+    this.reset(spawn);
   }
 
-  reset() {
-    this.x = this.startX;
-    this.y = this.startY;
+  reset(spawn) {
+    this.x = spawn.x;
+    this.y = spawn.y;
     this.vx = 0;
     this.vy = 0;
     this.onGround = false;
-    this.jumpBuffer = 0;
-    this.coyoteTimer = 0;
-    this.jumpLock = false;
-    this.facing = 1;
-    this.rotation = 0;
   }
 
   get bounds() {
     return {
-      x: this.x,
-      y: this.y,
-      width: this.width,
-      height: this.height,
+      x: this.x - this.radius,
+      y: this.y - this.radius,
+      width: this.radius * 2,
+      height: this.radius * 2,
     };
   }
 
-  get center() {
-    return {
-      x: this.x + this.radius,
-      y: this.y + this.radius,
-      radius: this.radius,
-    };
-  }
+  update(input) {
+    const movingLeft = input.isDown('ArrowLeft', 'KeyA');
+    const movingRight = input.isDown('ArrowRight', 'KeyD');
 
-  handleInput(input, deltaTime) {
-    const dt = deltaTime / 1000;
-    const acceleration = this.onGround ? 2400 : 1650;
-    const moveLeft = input.isLeftPressed();
-    const moveRight = input.isRightPressed();
-    const jumpPressed = input.isJumpPressed();
+    if (movingLeft) this.vx -= this.moveSpeed;
+    if (movingRight) this.vx += this.moveSpeed;
 
-    if (moveLeft && !moveRight) {
-      this.vx -= acceleration * dt;
-      this.facing = -1;
-    } else if (moveRight && !moveLeft) {
-      this.vx += acceleration * dt;
-      this.facing = 1;
-    } else {
-      const drag = this.onGround ? this.groundDrag : this.airDrag;
-      this.vx *= Math.pow(drag, dt * 60);
-      if (Math.abs(this.vx) < 6) this.vx = 0;
+    if (!movingLeft && !movingRight) {
+      this.vx *= this.onGround ? this.groundDrag : this.airDrag;
+      if (Math.abs(this.vx) < 0.05) this.vx = 0;
     }
 
-    this.vx = Math.max(-this.speed, Math.min(this.speed, this.vx));
+    this.vx = Math.max(-this.maxSpeed, Math.min(this.maxSpeed, this.vx));
 
-    if (jumpPressed) {
-      this.jumpBuffer = 0.14;
-    } else {
-      this.jumpLock = false;
-    }
-  }
-
-  update(deltaTime) {
-    const dt = deltaTime / 1000;
-
-    if (this.jumpBuffer > 0) this.jumpBuffer -= dt;
-    if (this.coyoteTimer > 0) this.coyoteTimer -= dt;
-
-    if (this.jumpBuffer > 0 && !this.jumpLock && (this.onGround || this.coyoteTimer > 0)) {
+    if (input.consumePress('ArrowUp', 'KeyW', 'Space') && this.onGround) {
       this.vy = -this.jumpForce;
       this.onGround = false;
-      this.coyoteTimer = 0;
-      this.jumpBuffer = 0;
-      this.jumpLock = true;
     }
 
-    this.vy += this.gravity * dt;
-    if (this.vy > this.maxFallSpeed) this.vy = this.maxFallSpeed;
+    this.vy += this.gravity;
+    this.vy = Math.min(this.vy, this.maxFall);
 
-    this.x += this.vx * dt;
-    this.y += this.vy * dt;
-    this.rotation += (this.vx / Math.max(1, this.speed)) * 0.12;
-  }
+    this.x += this.vx;
+    this.y += this.vy;
 
-  landOn(y) {
-    this.y = y - this.height;
-    this.vy = 0;
-    this.onGround = true;
-    this.coyoteTimer = 0.12;
-  }
-
-  leaveGround() {
-    if (this.onGround) {
-      this.coyoteTimer = 0.12;
+    if (this.invulnerability > 0) {
+      this.invulnerability -= 1;
     }
-    this.onGround = false;
   }
 
-  draw(ctx, cameraX) {
-    const drawX = this.x - cameraX + this.radius;
-    const drawY = this.y + this.radius;
-
+  draw(ctx) {
     ctx.save();
 
-    ctx.fillStyle = 'rgba(72, 92, 88, 0.18)';
+    const blink = this.invulnerability > 0 && Math.floor(this.invulnerability / 5) % 2 === 0;
+    ctx.globalAlpha = blink ? 0.45 : 1;
+
+    const gradient = ctx.createRadialGradient(
+      this.x - 4,
+      this.y - 8,
+      6,
+      this.x,
+      this.y,
+      this.radius
+    );
+    gradient.addColorStop(0, '#f7fbf7');
+    gradient.addColorStop(0.45, '#b7d0c2');
+    gradient.addColorStop(1, '#6f9682');
+
+    ctx.fillStyle = gradient;
     ctx.beginPath();
-    ctx.ellipse(drawX, this.y + this.height + 4, 16, 7, 0, 0, Math.PI * 2);
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.translate(drawX, drawY);
-    ctx.rotate(this.rotation);
-
-    ctx.beginPath();
-    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-    ctx.fillStyle = '#7da48d';
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(-5, -6, this.radius * 0.52, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.28)';
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(this.facing * 5, -2, 2.8, 0, Math.PI * 2);
-    ctx.fillStyle = '#f6f2e8';
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.arc(this.facing * 6, -2, 1.2, 0, Math.PI * 2);
-    ctx.fillStyle = '#44564d';
-    ctx.fill();
+    ctx.strokeStyle = 'rgba(74, 90, 84, 0.18)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
 
     ctx.restore();
   }

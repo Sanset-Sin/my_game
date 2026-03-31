@@ -3,65 +3,55 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Soft Hop — JavaScript Platformer</title>
-  <meta name="description" content="Учебная игра-платформер на чистом JavaScript и Canvas API" />
-  <link rel="stylesheet" href="css/style.css" />
+  <title>Lost Signal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body>
-  <div class="page-shell">
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">Практическое задание 3</p>
-        <h1>Soft Hop</h1>
-        <p class="subtitle">Спокойный платформер на JavaScript с Canvas API, мячом-персонажем, двумя уровнями и мягкой палитрой.</p>
-      </div>
-      <div class="controls-help">
-        <span>A / D или ← / → — движение</span>
-        <span>W / Space / ↑ — прыжок</span>
-        <span>P — пауза</span>
-        <span>R — рестарт</span>
-      </div>
-    </header>
-
-    <main class="game-layout">
-      <section class="hud-panel">
-        <div class="hud-grid">
-          <div class="hud-card">
-            <span class="label">Счёт</span>
-            <strong id="scoreValue">0</strong>
-          </div>
-          <div class="hud-card">
-            <span class="label">Жизни</span>
-            <strong id="livesValue">3</strong>
-          </div>
-          <div class="hud-card">
-            <span class="label">Уровень</span>
-            <strong id="levelValue">1</strong>
-          </div>
-          <div class="hud-card">
-            <span class="label">Рекорд</span>
-            <strong id="bestValue">0</strong>
-          </div>
+  <main class="app-shell">
+    <section class="game-card">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Практическое задание 3</p>
+          <h1>Lost Signal</h1>
+          <p class="subtitle">Платформер про энергетическое ядро, которое восстанавливает сеть маяков.</p>
         </div>
-
-        <div class="button-row">
-          <button id="startBtn" class="game-btn primary">Старт</button>
-          <button id="pauseBtn" class="game-btn">Пауза</button>
-          <button id="restartBtn" class="game-btn">Рестарт</button>
+        <div class="topbar-actions">
+          <button id="startBtn" class="btn btn-primary">Старт</button>
+          <button id="pauseBtn" class="btn">Пауза</button>
+          <button id="restartBtn" class="btn">Рестарт</button>
         </div>
+      </header>
 
-        <div class="status-card">
-          <span class="label">Статус</span>
-          <p id="statusText">Нажми «Старт», чтобы начать забег.</p>
-        </div>
+      <section class="hud">
+        <div class="hud-item"><span>Уровень</span><strong id="levelValue">1 / 3</strong></div>
+        <div class="hud-item"><span>Энергия</span><strong id="scoreValue">0</strong></div>
+        <div class="hud-item"><span>Жизни</span><strong id="livesValue">3</strong></div>
+        <div class="hud-item"><span>Лучший счёт</span><strong id="bestValue">0</strong></div>
       </section>
 
-      <section class="canvas-wrap">
-        <canvas id="gameCanvas" width="960" height="540" aria-label="Игровое поле платформера"></canvas>
-      </section>
-    </main>
-  </div>
+      <div class="canvas-wrap">
+        <canvas id="gameCanvas" width="960" height="540" aria-label="Игровое поле платформера Lost Signal"></canvas>
+        <div class="overlay" id="overlay">
+          <div class="overlay-card">
+            <p class="overlay-tag" id="overlayTag">Ламповый платформер</p>
+            <h2 id="overlayTitle">Нажми «Старт»</h2>
+            <p id="overlayText">Собери все энергетические фрагменты, активируй портал и пройди три зоны. A/D или ←/→ — движение, W/Space/↑ — прыжок, P — пауза.</p>
+          </div>
+        </div>
+      </div>
 
-  <script type="module" src="js/main.js"></script>
+      <footer class="legend">
+        <div><span class="dot dot-player"></span>Ядро</div>
+        <div><span class="dot dot-fragment"></span>Фрагменты</div>
+        <div><span class="dot dot-portal"></span>Портал</div>
+        <div><span class="dot dot-hazard"></span>Шипы и дроны</div>
+      </footer>
+    </section>
+  </main>
+
+  <script type="module" src="./js/main.js"></script>
 </body>
 </html>

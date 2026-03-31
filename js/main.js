@@ -1,17 +1,34 @@
+import { InputHandler } from './InputHandler.js';
 import { Game } from './Game.js';
 
 const canvas = document.getElementById('gameCanvas');
+const input = new InputHandler();
 
-const hud = {
+const ui = {
+  levelValue: document.getElementById('levelValue'),
   scoreValue: document.getElementById('scoreValue'),
   livesValue: document.getElementById('livesValue'),
-  levelValue: document.getElementById('levelValue'),
   bestValue: document.getElementById('bestValue'),
-  statusText: document.getElementById('statusText'),
-  startBtn: document.getElementById('startBtn'),
-  pauseBtn: document.getElementById('pauseBtn'),
-  restartBtn: document.getElementById('restartBtn'),
+  overlay: document.getElementById('overlay'),
+  overlayTag: document.getElementById('overlayTag'),
+  overlayTitle: document.getElementById('overlayTitle'),
+  overlayText: document.getElementById('overlayText'),
 };
 
-const game = new Game(canvas, hud);
-game.run();
+const game = new Game(canvas, ui, input);
+
+document.getElementById('startBtn').addEventListener('click', () => game.start());
+document.getElementById('pauseBtn').addEventListener('click', () => {
+  if (game.state === 'menu') return;
+  if (game.state === 'victory' || game.state === 'gameover') return;
+  game.togglePause();
+});
+document.getElementById('restartBtn').addEventListener('click', () => game.restart());
+
+function gameLoop(timestamp) {
+  game.update(timestamp);
+  game.draw();
+  requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
